@@ -9,7 +9,7 @@ attach a lifecycle policy to prune old images.
 
 ```hcl
 module "ecr" {
-  source = "github.com/cybercapybara/terraform-aws-ecr"
+  source = "github.com/moveeeax/terraform-aws-ecr"
 
   name         = "app"
   scan_on_push = true
