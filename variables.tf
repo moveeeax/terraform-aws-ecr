@@ -1,6 +1,13 @@
 variable "name" {
   description = "Name of the ECR repository."
   type        = string
+
+  # Mirrors the repositoryName constraints documented for the ECR
+  # CreateRepository API, so a bad name fails at plan time instead of apply.
+  validation {
+    condition     = can(regex("^(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*$", var.name)) && length(var.name) >= 2 && length(var.name) <= 256
+    error_message = "name must be 2-256 characters of lowercase letters, numbers, and the separators . _ - / (separators may not lead, trail, or repeat)."
+  }
 }
 
 variable "image_tag_mutability" {
@@ -47,6 +54,16 @@ variable "lifecycle_policy" {
   description = "JSON lifecycle policy applied to the repository. Null skips the policy."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.lifecycle_policy == null || can(jsondecode(var.lifecycle_policy))
+    error_message = "lifecycle_policy must be valid JSON."
+  }
+
+  validation {
+    condition     = var.lifecycle_policy == null || can(tolist(jsondecode(var.lifecycle_policy)["rules"]))
+    error_message = "lifecycle_policy must be a JSON object with a \"rules\" array, e.g. {\"rules\":[{\"rulePriority\":1,...}]}. Anything else is rejected by the ECR API at apply time."
+  }
 }
 
 variable "tags" {
