@@ -13,6 +13,16 @@ resource "aws_ecr_repository" "this" {
   }
 
   tags = var.tags
+
+  # Cross-variable checks live here rather than in variable `validation` blocks
+  # so the module keeps working on Terraform < 1.9, which cannot reference
+  # another variable from inside a validation condition.
+  lifecycle {
+    precondition {
+      condition     = var.kms_key == null || var.encryption_type == "KMS"
+      error_message = "kms_key is only honoured when encryption_type is \"KMS\". Set encryption_type = \"KMS\" or remove kms_key; otherwise the key is silently ignored and the repository is encrypted with AES256."
+    }
+  }
 }
 
 resource "aws_ecr_lifecycle_policy" "this" {
