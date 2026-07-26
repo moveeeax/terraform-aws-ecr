@@ -133,6 +133,97 @@ run "rejects_lifecycle_policy_without_rules" {
   expect_failures = [var.lifecycle_policy]
 }
 
+# tolist(null) does not raise an error (it just evaluates to null), so a
+# "rules": null payload could otherwise slide past a naive `can(tolist(...))`
+# check and only be rejected once it reaches the ECR API at apply time.
+run "rejects_lifecycle_policy_with_null_rules" {
+  command = plan
+
+  variables {
+    lifecycle_policy = "{\"rules\": null}"
+  }
+
+  expect_failures = [var.lifecycle_policy]
+}
+
+# rules must be a JSON array, not an object keyed by e.g. rule name.
+run "rejects_lifecycle_policy_with_rules_as_object" {
+  command = plan
+
+  variables {
+    lifecycle_policy = "{\"rules\": {\"first\": {\"rulePriority\": 1}}}"
+  }
+
+  expect_failures = [var.lifecycle_policy]
+}
+
+run "multiple_optional_flags_together" {
+  command = plan
+
+  variables {
+    encryption_type      = "KMS"
+    kms_key              = "arn:aws:kms:us-east-1:111122223333:key/00000000-0000-0000-0000-000000000000"
+    image_tag_mutability = "MUTABLE"
+    force_delete         = true
+    scan_on_push         = false
+    tags = {
+      Environment = "staging"
+      ManagedBy   = "terraform"
+    }
+    lifecycle_policy = <<-JSON
+      {
+        "rules": [
+          {
+            "rulePriority": 1,
+            "description": "Expire untagged images after 14 days",
+            "selection": {
+              "tagStatus": "untagged",
+              "countType": "sinceImagePushed",
+              "countUnit": "days",
+              "countNumber": 14
+            },
+            "action": { "type": "expire" }
+          }
+        ]
+      }
+    JSON
+  }
+
+  # None of these optional inputs should interfere with each other when set
+  # simultaneously: the KMS key must still reach the repository, the
+  # lifecycle policy must still attach, and the other overrides must all
+  # take effect together rather than only when set in isolation.
+  assert {
+    condition     = aws_ecr_repository.this.encryption_configuration[0].kms_key == var.kms_key
+    error_message = "kms_key must reach the repository even when other optional inputs are also set."
+  }
+
+  assert {
+    condition     = aws_ecr_repository.this.image_tag_mutability == "MUTABLE"
+    error_message = "image_tag_mutability override must take effect alongside the other optional inputs."
+  }
+
+  assert {
+    condition     = aws_ecr_repository.this.force_delete == true
+    error_message = "force_delete override must take effect alongside the other optional inputs."
+  }
+
+  assert {
+    condition     = aws_ecr_repository.this.image_scanning_configuration[0].scan_on_push == false
+    error_message = "scan_on_push override must take effect alongside the other optional inputs."
+  }
+
+  assert {
+    condition     = length(aws_ecr_lifecycle_policy.this) == 1
+    error_message = "lifecycle_policy must still attach when other optional inputs are also set."
+  }
+
+  assert {
+    condition     = aws_ecr_repository.this.tags["Environment"] == "staging"
+    error_message = "tags must still be applied when other optional inputs are also set."
+  }
+}
+
 run "rejects_invalid_repository_name" {
   command = plan
 

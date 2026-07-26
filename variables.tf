@@ -61,7 +61,15 @@ variable "lifecycle_policy" {
   }
 
   validation {
-    condition     = var.lifecycle_policy == null || can(tolist(jsondecode(var.lifecycle_policy)["rules"]))
+    # tolist(null) succeeds (it evaluates to null) even though can() reports
+    # no error, so a `"rules": null` payload would otherwise slip past this
+    # check and only fail once it reaches the ECR API at apply time. The
+    # explicit != null guards that case.
+    condition = var.lifecycle_policy == null || (
+      can(jsondecode(var.lifecycle_policy)["rules"]) &&
+      jsondecode(var.lifecycle_policy)["rules"] != null &&
+      can(tolist(jsondecode(var.lifecycle_policy)["rules"]))
+    )
     error_message = "lifecycle_policy must be a JSON object with a \"rules\" array, e.g. {\"rules\":[{\"rulePriority\":1,...}]}. Anything else is rejected by the ECR API at apply time."
   }
 }
