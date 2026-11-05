@@ -116,3 +116,7 @@ tflint --init && tflint --recursive
 ## License
 
 [MIT](LICENSE)
+
+---
+
+**Archived on 2026-11-05.** terraform-aws-modules/ecr covers the repository, policies, lifecycle, registry scanning, replication and pull-through cache. This module's angle (IMMUTABLE default, plan-time validation of name and lifecycle JSON) is good but narrow. If you keep it, the first two features below close the gaps that block real use.
